@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PS Vita Frontend File Generator</title>
+<meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg-secondary: #0e1520;
+    --bg-panel: #0f1319;
+    --text: #c8d4e8;
+    --text-dim: #5a7a9a;
+    --accent: #006FCD;
+    --accent2: #4ab4ff;
+    --vita-blue: #006FCD;
+    --border: #1a2a3d;
+    --border-glow: #1a3a5a;
+    --input-bg: #101620;
+    --result-hover: #131d2a;
+    --green: #4caf7d;
+    --red: #ff5555;
+    --orange: #ff9800;
+    --scrollbar: #1a2a3d;
+    --scrollbar-thumb: #1a4a7a;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f0f5fb;
+      --bg-secondary: #e4edf7;
+      --bg-panel: #ffffff;
+      --text: #0d1a2a;
+      --text-dim: #4a6a8a;
+      --accent: #006FCD;
+      --accent2: #1a8aff;
+      --vita-blue: #006FCD;
+      --border: #c0d5ea;
+      --border-glow: #90c0f0;
+      --input-bg: #ffffff;
+      --result-hover: #deeefa;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #d97706;
+      --scrollbar: #d0e5f5;
+      --scrollbar-thumb: #90b8d8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: Arial;
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(0, 111, 205, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(74, 180, 255, 0.05) 0%, transparent 50%);
+  }
+
+  h1 {
+    font-family: Arial;
+    font-size: 22px;
+    text-transform: uppercase;
+    margin: 0 0 4px 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .header-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .vita-badge {
+    background: linear-gradient(135deg, var(--vita-blue), #004a99);
+    color: white;
+    font-family: Arial;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  #status {
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 4px;
+    border-left: 3px solid var(--text-dim);
+    background: var(--bg-secondary);
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+  }
+  #status.ok { border-color: var(--green); color: var(--green); }
+  #status.err { border-color: var(--red); color: var(--red); }
+  #status.loading { border-color: var(--accent2); color: var(--accent2); }
+
+  .top-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: Arial;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--input-bg);
+    color: var(--text);
+    letter-spacing: 1px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  button:disabled:hover { border-color: var(--border); color: var(--text); }
+
+  .search-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 700px) {
+    .search-grid { grid-template-columns: 1fr; }
+  }
+
+  .search-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .search-panel-header {
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .search-panel-header .label {
+    font-family: Arial;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .label-name { color: var(--accent); }
+  .label-id { color: var(--accent2); }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-name { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot-id { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+  .search-panel input[type="text"] {
+    width: 100%;
+    padding: 10px 14px;
+    font-family: Arial;
+    font-size: 13px;
+    background: var(--input-bg);
+    color: var(--text);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    outline: none;
+    transition: background 0.2s;
+  }
+  .search-panel input[type="text"]:focus { background: var(--result-hover); }
+  .search-panel input[type="text"]::placeholder { color: var(--text-dim); }
+
+  .results-box {
+    max-height: 260px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar);
+  }
+  .results-box::-webkit-scrollbar { width: 5px; }
+  .results-box::-webkit-scrollbar-track { background: var(--scrollbar); }
+  .results-box::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+  .result {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    transition: background 0.1s;
+  }
+  .result:hover { background: var(--result-hover); }
+  .result-id { color: var(--text-dim); font-size: 11px; margin-left: 6px; font-family: monospace; }
+
+  .add-btn {
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green);
+    padding: 3px 10px;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .add-btn:hover { background: rgba(76, 175, 125, 0.12); border-color: var(--green); color: var(--green); }
+
+  .selected-section {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+
+  .selected-header {
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .selected-header .label {
+    font-family: Arial;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .count-badge {
+    background: var(--vita-blue);
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .selected-list {
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar);
+  }
+  .selected-list::-webkit-scrollbar { width: 5px; }
+  .selected-list::-webkit-scrollbar-track { background: var(--scrollbar); }
+  .selected-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+  .selected-item {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .remove-btn {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+    padding: 3px 10px;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .remove-btn:hover { background: rgba(255, 85, 85, 0.12); border-color: var(--red); color: var(--red); }
+
+  .clear-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .clear-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+
+  .controls-label {
+    font-family: Arial;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .controls-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .controls-group label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    color: var(--text);
+  }
+
+  input[type="radio"], input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+
+  .gen-btn {
+    font-family: Arial;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 10px 24px;
+    background: linear-gradient(135deg, rgba(0, 111, 205, 0.2), rgba(74, 180, 255, 0.1));
+    border: 1px solid var(--vita-blue);
+    color: var(--accent);
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+  }
+  .gen-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(0, 111, 205, 0.35), rgba(74, 180, 255, 0.2));
+    border-color: var(--accent2);
+    box-shadow: 0 0 16px rgba(0, 111, 205, 0.35);
+    color: white;
+  }
+
+  .empty-msg {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>PS Vita Frontend File Generator</h1>
+<div class="subtitle">Frontend File Generator &mdash; ES-DE / Daijishou</div>
+
+<div class="top-controls">
+  <button onclick="loadXML()">Load Local XML</button>
+  <input type="file" id="xmlFile" style="display:none" accept=".xml">
+  <div class="vita-badge">PS VITA</div>
+</div>
+
+<div id="status" class="loading">Loading PS Vita catalog from GitHub...</div>
+
+<div class="search-grid">
+  <!-- Search by Name panel -->
+  <div class="search-panel">
+    <div class="search-panel-header">
+      <div class="dot dot-name"></div>
+      <span class="label label-name">Search by Name</span>
+    </div>
+    <input type="text" id="searchName" placeholder="Search game name..." oninput="search('name')" disabled>
+    <div class="results-box" id="resultsName"></div>
+  </div>
+
+  <!-- Search by Game ID panel -->
+  <div class="search-panel">
+    <div class="search-panel-header">
+      <div class="dot dot-id"></div>
+      <span class="label label-id">Search by Game ID</span>
+    </div>
+    <input type="text" id="searchId" placeholder="Search game ID (e.g. PCSE00965)..." oninput="search('id')" disabled>
+    <div class="results-box" id="resultsId"></div>
+  </div>
+</div>
+
+<!-- Selected -->
+<div class="selected-section">
+  <div class="selected-header">
+    <span class="label">Selected Games</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="count-badge" id="selectedCount">0</span>
+      <button class="clear-btn" onclick="clearSelected()">Clear All</button>
+    </div>
+  </div>
+  <div class="selected-list" id="selected">
+    <div class="empty-msg">No games selected yet.</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls-bar">
+  <span class="controls-label">Platform</span>
+  <div class="controls-group">
+    <label><input type="radio" name="fileType" value="esde" checked> ES-DE (.psvita)</label>
+    <label><input type="radio" name="fileType" value="daijishou"> Daijishou (.dpt)</label>
+  </div>
+  <div class="divider"></div>
+  <div class="controls-group">
+    <label>
+      <input type="checkbox" id="downloadCovers">
+      Download covers
+    </label>
+  </div>
+  <div class="divider"></div>
+  <button class="gen-btn" onclick="generateZip()" id="genZip" disabled>Generate ZIP</button>
+</div>
+
+<script>
+let vitaData = [];
+let selectedGames = [];
+
+window.addEventListener('DOMContentLoaded', async function() {
+  const url = 'https://raw.githubusercontent.com/Jetup13/vitagameid/main/vita.xml';
+  const statusDiv = document.getElementById("status");
+
+  try {
+    statusDiv.innerText = "Loading PS Vita catalog from GitHub...";
+    statusDiv.className = "loading";
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Fetch failed');
+
+    const xmlText = await response.text();
+    vitaData = parseXML(xmlText);
+
+    statusDiv.innerText = "✓ Loaded " + vitaData.length + " PS Vita games.";
+    statusDiv.className = "ok";
+    document.getElementById("searchName").disabled = false;
+    document.getElementById("searchId").disabled = false;
+  } catch (err) {
+    statusDiv.innerText = "✗ Could not load from GitHub. Use 'Load Local XML' instead.";
+    statusDiv.className = "err";
+  }
+});
+
+function parseXML(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  const games = doc.querySelectorAll("game");
+  const result = [];
+  games.forEach(game => {
+    const name = game.querySelector("name")?.textContent?.trim();
+    const gameid = game.querySelector("gameid")?.textContent?.trim();
+    if (name && gameid) result.push({ name, gameid });
+  });
+  return result;
+}
+
+function loadXML() {
+  document.getElementById("xmlFile").click();
+}
+
+document.getElementById("xmlFile").addEventListener("change", function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      vitaData = parseXML(e.target.result);
+      const statusDiv = document.getElementById("status");
+      statusDiv.innerText = "✓ Loaded " + vitaData.length + " PS Vita games from local file.";
+      statusDiv.className = "ok";
+      document.getElementById("searchName").disabled = false;
+      document.getElementById("searchId").disabled = false;
+    } catch {
+      const statusDiv = document.getElementById("status");
+      statusDiv.innerText = "✗ Error reading XML file.";
+      statusDiv.className = "err";
+    }
+  };
+  reader.readAsText(file);
+});
+
+function search(type) {
+  const inputId = type === 'name' ? 'searchName' : 'searchId';
+  const resultsId = type === 'name' ? 'resultsName' : 'resultsId';
+  const q = document.getElementById(inputId).value.toLowerCase().trim();
+  const resultsDiv = document.getElementById(resultsId);
+  resultsDiv.innerHTML = "";
+
+  if (q.length < 2) return;
+
+  const filtered = vitaData
+    .filter(g => type === 'name'
+      ? g.name.toLowerCase().includes(q)
+      : g.gameid.toLowerCase().includes(q))
+    .slice(0, 300);
+
+  if (filtered.length === 0) {
+    resultsDiv.innerHTML = '<div class="empty-msg">No results found.</div>';
+    return;
+  }
+
+  filtered.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "result";
+
+    const left = document.createElement("span");
+    left.innerHTML = `${item.name}<span class="result-id">${item.gameid}</span>`;
+
+    const btn = document.createElement("button");
+    btn.className = "add-btn";
+    btn.innerText = "+ Add";
+    btn.onclick = e => { e.stopPropagation(); addItem(item); };
+
+    div.appendChild(left);
+    div.appendChild(btn);
+    div.onclick = () => addItem(item);
+    resultsDiv.appendChild(div);
+  });
+}
+
+function addItem(item) {
+  if (selectedGames.find(g => g.gameid === item.gameid)) return;
+  selectedGames.push(item);
+  updateSelectedDisplay();
+}
+
+function removeItem(gameid) {
+  selectedGames = selectedGames.filter(g => g.gameid !== gameid);
+  updateSelectedDisplay();
+}
+
+function clearSelected() {
+  if (selectedGames.length && confirm(`Clear all ${selectedGames.length} selected games?`)) {
+    selectedGames = [];
+    updateSelectedDisplay();
+  }
+}
+
+function updateSelectedDisplay() {
+  const selectedDiv = document.getElementById("selected");
+  const countSpan = document.getElementById("selectedCount");
+  const genZipBtn = document.getElementById("genZip");
+
+  countSpan.innerText = selectedGames.length;
+  genZipBtn.disabled = selectedGames.length === 0;
+
+  if (selectedGames.length === 0) {
+    selectedDiv.innerHTML = '<div class="empty-msg">No games selected yet.</div>';
+    return;
+  }
+
+  selectedDiv.innerHTML = "";
+  selectedGames.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "selected-item";
+
+    const left = document.createElement("span");
+    left.style.display = "flex";
+    left.style.alignItems = "center";
+    left.innerHTML = `${item.name} <span class="result-id">${item.gameid}</span>`;
+
+    const btn = document.createElement("button");
+    btn.className = "remove-btn";
+    btn.innerText = "Remove";
+    btn.onclick = () => removeItem(item.gameid);
+
+    div.appendChild(left);
+    div.appendChild(btn);
+    selectedDiv.appendChild(div);
+  });
+}
+
+function sanitize(name) {
+  return name.replace(/:/g, " -").replace(/[\\/*?"<>|]/g, "").replace(/\s+/g, " ").trim();
+}
+
+async function generateZip() {
+  const fileType = document.querySelector('input[name="fileType"]:checked').value;
+  const downloadCovers = document.getElementById("downloadCovers").checked;
+  const zip = new JSZip();
+  const covers = downloadCovers ? zip.folder("covers") : null;
+
+  for (const item of selectedGames) {
+    const name = sanitize(item.name);
+
+    let content, ext;
+    if (fileType === "esde") {
+      content = item.gameid;
+      ext = ".psvita";
+    } else {
+      content = `# Daijishou Player Template\n[vita_game_id] ${item.gameid}\n...`;
+      ext = ".dpt";
+    }
+
+    zip.file(name + ext, content);
+
+    if (downloadCovers) {
+      try {
+        const imgUrl = `https://raw.githubusercontent.com/Jetup13/vitagameid/main/covers/${encodeURIComponent(item.name)}.png`;
+        const r = await fetch(imgUrl);
+        if (r.ok) covers.file(name + ".png", await r.blob());
+      } catch {}
+    }
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const zipName = fileType === "esde" ? "vita_es-de" : "vita_daijishou";
+  a.download = `${zipName}.zip`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
