@@ -1,6 +1,6 @@
 # Link
 
-[Link]]https://jetup13.github.io/vitagameid/vita.html]
+[Vita HTML link](https://jetup13.github.io/vitagameid/vita.html)
 
 # How-to use
 
